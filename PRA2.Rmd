@@ -1,0 +1,55 @@
+---
+title: "Pràctica 2"
+author: "Oriol Medina Marcos, Guiu Riera Riera"
+date: "20/12/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1. Descripció del dataset. Perquè és important i quina pregunta/problema pretén respondre?
+El dataset triat és el proporcionat en aquesta pràctica sota el nom de Red Wine Quality (https://www.kaggle.com/uciml/red-wine-quality-cortez-et-al-2009 ). Aquest dataset conté una sèrie de paràmetres mesurats en diferents tipus de vi i una qualificació final d'aquest en funció de les notes obtingudes en tots els paràmetres.
+
+El dataset es compon 1599 registres en els que s'informa per a cadascun d'aquest els següents paràmetres o columnes:
+
+* fixed acidity
+* volatile acidity
+* citric acid
+* residual sugar
+* chlorides
+* free sulfur dioxide
+* total sulfur dioxide
+* density
+* pH
+* sulphates
+* alcohol
+* quality (puntuació entre 0 i 10)
+
+Podriem dir que aquest dataset preten estudiar les tendències del diferents tipus de vins estudiats com podria ser la graduació alcohòlica o trobar un tipus de vi en funció d'uns valors en els paràmetres mesurats.
+
+## 2. Integració i selecció de les dades d’interès a analitzar.
+Per començar amb la integració de les dades, llegirem el fitxer *winequality-red.csv* en el que hi trobem totes les dades. Per fer-ho utilitzem la intrucció *read.csv()* passant com a paràmetres la ruta del fitxer i el separador de columnes que en aquest cas és una coma (;).
+
+```{r message= FALSE, warning=FALSE}
+data<-read.csv("C:\\winequality-red.csv", sep=",")
+```
+
+Ara tenim en la variable *data* tota la informació carregada.
+
+## 3. Neteja de les dades. *Per mirar junts aquest punt*
+### 3.1. Les dades contenen zeros o elements buits? Com gestionaries aquests casos?
+*Només he trobat valors 0 en citric acid pero crec que és un valor correcte.*
+*No he trobat a cap lloc valors buits/nulls.*
+
+### 3.2. Identificació i tractament de valors extrems.
+*He trobat valors extrems a les columnes volatile acidity, chlorides, density i alcohol*
+
+## 4. Anàlisi de les dades.
+### 4.1. Selecció dels grups de dades que es volen analitzar/comparar (planificació dels anàlisis a aplicar).
+### 4.2. Comprovació de la normalitat i homogeneïtat de la variància.
+### 4.3. Aplicació de proves estadístiques per comparar els grups de dades. En funció de les dades i de l’objectiu de l’estudi, aplicar proves de contrast d’hipòtesis, correlacions, regressions, etc. Aplicar almenys tres mètodes d’anàlisi diferents.
+## 5. Representació dels resultats a partir de taules i gràfiques.
+## 6. Resolució del problema. A partir dels resultats obtinguts, quines són les conclusions? Els resultats permeten respondre al problema?
+## 7. Codi: Cal adjuntar el codi, preferiblement en R, amb el que s’ha realitzat la neteja, anàlisi i representació de les dades. Si ho preferiu, també podeu treballar en Python.
