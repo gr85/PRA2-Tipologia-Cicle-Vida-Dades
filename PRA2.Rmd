@@ -9,6 +9,15 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r message=FALSE, warning=FALSE}
+# Llibreries a utilitzar
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(grid)
+```
+
+
 ## 1. Descripció del dataset. Perquè és important i quina pregunta/problema pretén respondre?
 El dataset triat és el proporcionat en aquesta pràctica sota el nom de Red Wine Quality (https://www.kaggle.com/uciml/red-wine-quality-cortez-et-al-2009 ). Aquest dataset conté una sèrie de paràmetres mesurats en diferents tipus de vi i una qualificació final d'aquest en funció de les notes obtingudes en tots els paràmetres.
 
@@ -27,24 +36,267 @@ El dataset es compon 1599 registres en els que s'informa per a cadascun d'aquest
 * alcohol
 * quality (puntuació entre 0 i 10)
 
-Podriem dir que aquest dataset preten estudiar les tendències del diferents tipus de vins estudiats com podria ser la graduació alcohòlica o trobar un tipus de vi en funció d'uns valors en els paràmetres mesurats.
+Podriem dir que aquest dataset preten estudiar les tendències dels diferents tipus de vins estudiats com podria ser la graduació alcohòlica o trobar un tipus de vi en funció d'uns valors en els paràmetres mesurats.
 
 ## 2. Integració i selecció de les dades d’interès a analitzar.
+
 Per començar amb la integració de les dades, llegirem el fitxer *winequality-red.csv* en el que hi trobem totes les dades. Per fer-ho utilitzem la intrucció *read.csv()* passant com a paràmetres la ruta del fitxer i el separador de columnes que en aquest cas és una coma (;).
 
 ```{r message= FALSE, warning=FALSE}
-data<-read.csv("C:\\winequality-red.csv", sep=",")
+data<-read.csv("winequality-red.csv", sep=",")
 ```
 
-Ara tenim en la variable *data* tota la informació carregada.
+Ara tenim en la variable *data* tota la informació carregada i comprovem que cada variable és del tipus que s'espera:
+
+```{r}
+sapply(data, function(x) { class(x) })
+```
+
+Per tal de fer-nos una idea de la informació que contenen les variables utilitzem la funció *summary()* que ens permet veure com estant distribuits cada un dels seus valors
+
+```{r}
+summary(data)
+```
+
+Per acabar aquesta primera part, per tal de poder treballar en anàlisis posteriors la variable categòrica **quality** hem vist que està definida com a enter, però per poder treballar de manera correcte amb ella l'haurem de convertir a tipus factor, per això era interessant utilitzar la funció *summary()* perquè ens permet veure el valor mínim i màxim que pren aquesta variable per tal de crear els factors de manera correcte.
+
+```{r}
+data$quality <- factor(data$quality, levels = min(data$quality):max(data$quality), 
+                       labels = min(data$quality):max(data$quality))
+summary(data)
+```
 
 ## 3. Neteja de les dades. *Per mirar junts aquest punt*
 ### 3.1. Les dades contenen zeros o elements buits? Com gestionaries aquests casos?
 *Només he trobat valors 0 en citric acid pero crec que és un valor correcte.*
 *No he trobat a cap lloc valors buits/nulls.*
 
+Comprobem si el joc de dades conté algun registre amb valors buits o nuls
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Comprobem si hi ha valors NA o buits
+"NA:"
+colSums(is.na(data))
+
+"Buits:"
+colSums(data=="")
+
+# Coma que amb altres datasets que hem treballat hi havia volrs amb "?". 
+# comprobem si també n'hi ha
+"?:"
+colSums(data==" ?")
+
+# Comprobem si hi ha registres amb 0s
+"0's:"
+colSums(data==0)
+```
+
+Després d'aquest primer anàlisi veiem que l'únic atribut que ofereix registres amb valors 0 és el que fa referència a l'acid cítric, després de consultar vàries fonts (com per exemple: https://wineserver.ucdavis.edu/industry-info/enology/methods-and-techniques/common-chemical-reagents/citric-acid, https://www.randoxfood.com/why-is-testing-for-citric-acid-important-in-winemaking/) desaconsellen utilitzar aquest tipus d'àcid perquè pot provocar el creixament de bactèries no desitjades i en cas de fer-lo servir s'ha de fer en quantitats molt baixes (< 1g/l) per això considerem aquests valors com a vàlids i en aquest apartat no hi ha res més a fer.
+
 ### 3.2. Identificació i tractament de valors extrems.
 *He trobat valors extrems a les columnes volatile acidity, chlorides, density i alcohol*
+
+Per tal d'avaluar els valors extrems ens ajudem de les gràfiques d'histogrames, ja que tots els atributs són de tipus numèric, per tal de veure quina distribució segueixen.
+
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+p1 <- ggplot(data, aes(x=fixed.acidity)) + 
+  geom_histogram(aes(y=stat(count) / sum(count)),
+                 breaks=seq(0, max(data$fixed.acidity), by=0.5),
+                 col="black",
+                 fill="blue",
+                 alpha=.8) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title="Histogram for fixed.acidity", x="fixed.acidity", 
+       y="Relatvie frequency (%)") +
+  theme(plot.title = element_text(size = 7, hjust = 0.5),
+        axis.title.y = element_text(size = 7),
+        axis.title.x = element_text(size = 7),
+        axis.text.y = element_text(size = 5),
+        axis.text.x = element_text(size = 5))
+p2 <- ggplot(data, aes(x=volatile.acidity)) + 
+  geom_histogram(aes(y=stat(count) / sum(count)),
+                 breaks=seq(0, max(data$volatile.acidity), by=0.08),
+                 col="black",
+                 fill="blue",
+                 alpha=.8) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title="Histogram for volatile.acidity", x="volatile.acidity", 
+       y="Relatvie frequency (%)") +
+  theme(plot.title = element_text(size = 7, hjust = 0.5),
+        axis.title.y = element_text(size = 7),
+        axis.title.x = element_text(size = 7),
+        axis.text.y = element_text(size = 5),
+        axis.text.x = element_text(size = 5))
+p3 <- ggplot(data, aes(x=citric.acid)) + 
+  geom_histogram(aes(y=stat(count) / sum(count)),
+                 breaks=seq(0, max(data$citric.acid), by=0.05),
+                 col="black",
+                 fill="blue",
+                 alpha=.8) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title="Histogram for citric.acid", x="citric.acid", 
+       y="Relatvie frequency (%)") +
+  theme(plot.title = element_text(size = 7, hjust = 0.5),
+        axis.title.y = element_text(size = 7),
+        axis.title.x = element_text(size = 7),
+        axis.text.y = element_text(size = 5),
+        axis.text.x = element_text(size = 5))
+p4 <- ggplot(data, aes(x=residual.sugar)) + 
+  geom_histogram(aes(y=stat(count) / sum(count)),
+                 breaks=seq(0, max(data$residual.sugar), by=0.8),
+                 col="black",
+                 fill="blue",
+                 alpha=.8) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title="Histogram for residual.sugar", x="residual.sugar", 
+       y="Relatvie frequency (%)") +
+  theme(plot.title = element_text(size = 7, hjust = 0.5),
+        axis.title.y = element_text(size = 7),
+        axis.title.x = element_text(size = 7),
+        axis.text.y = element_text(size = 5),
+        axis.text.x = element_text(size = 5))
+p5 <- ggplot(data, aes(x=chlorides)) + 
+  geom_histogram(aes(y=stat(count) / sum(count)),
+                 breaks=seq(0, max(data$chlorides), by=0.03),
+                 col="black",
+                 fill="blue",
+                 alpha=.8) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title="Histogram for chlorides", x="chlorides", 
+       y="Relatvie frequency (%)") +
+  theme(plot.title = element_text(size = 7, hjust = 0.5),
+        axis.title.y = element_text(size = 7),
+        axis.title.x = element_text(size = 7),
+        axis.text.y = element_text(size = 5),
+        axis.text.x = element_text(size = 5))
+p6 <- ggplot(data, aes(x=free.sulfur.dioxide)) + 
+  geom_histogram(aes(y=stat(count) / sum(count)),
+                 breaks=seq(0, max(data$free.sulfur.dioxide), by=2),
+                 col="black",
+                 fill="blue",
+                 alpha=.8) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title="Histogram for free.sulfur.dioxide", x="free.sulfur.dioxide", 
+       y="Relatvie frequency (%)") +
+  theme(plot.title = element_text(size = 7, hjust = 0.5),
+        axis.title.y = element_text(size = 7),
+        axis.title.x = element_text(size = 7),
+        axis.text.y = element_text(size = 5),
+        axis.text.x = element_text(size = 5))
+p7 <- ggplot(data, aes(x=total.sulfur.dioxide)) + 
+  geom_histogram(aes(y=stat(count) / sum(count)),
+                 breaks=seq(0, max(data$total.sulfur.dioxide), by=10),
+                 col="black",
+                 fill="blue",
+                 alpha=.8) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title="Histogram for total.sulfur.dioxide", x="total.sulfur.dioxide", 
+       y="Relatvie frequency (%)") +
+  theme(plot.title = element_text(size = 7, hjust = 0.5),
+        axis.title.y = element_text(size = 7),
+        axis.title.x = element_text(size = 7),
+        axis.text.y = element_text(size = 5),
+        axis.text.x = element_text(size = 5))
+p8 <- ggplot(data, aes(x=density)) + 
+  geom_histogram(aes(y=stat(count) / sum(count)),
+                 breaks=seq(0.98, max(data$density), by=0.001),
+                 col="black",
+                 fill="blue",
+                 alpha=.8) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title="Histogram for density", x="density", 
+       y="Relatvie frequency (%)") +
+  theme(plot.title = element_text(size = 7, hjust = 0.5),
+        axis.title.y = element_text(size = 7),
+        axis.title.x = element_text(size = 7),
+        axis.text.y = element_text(size = 5),
+        axis.text.x = element_text(size = 5))
+p9 <- ggplot(data, aes(x=pH)) + 
+  geom_histogram(aes(y=stat(count) / sum(count)),
+                 breaks=seq(2, max(data$pH), by=0.1),
+                 col="black",
+                 fill="blue",
+                 alpha=.8) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title="Histogram for pH", x="pH", 
+       y="Relatvie frequency (%)") +
+  theme(plot.title = element_text(size = 7, hjust = 0.5),
+        axis.title.y = element_text(size = 7),
+        axis.title.x = element_text(size = 7),
+        axis.text.y = element_text(size = 5),
+        axis.text.x = element_text(size = 5))
+p10 <- ggplot(data, aes(x=sulphates)) + 
+  geom_histogram(aes(y=stat(count) / sum(count)),
+                 breaks=seq(0, max(data$sulphates), by=0.08),
+                 col="black",
+                 fill="blue",
+                 alpha=.8) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title="Histogram for sulphates", x="sulphates", 
+       y="Relatvie frequency (%)") +
+  theme(plot.title = element_text(size = 7, hjust = 0.5),
+        axis.title.y = element_text(size = 7),
+        axis.title.x = element_text(size = 7),
+        axis.text.y = element_text(size = 5),
+        axis.text.x = element_text(size = 5))
+p11 <- ggplot(data, aes(x=alcohol)) + 
+  geom_histogram(aes(y=stat(count) / sum(count)),
+                 breaks=seq(7, max(data$alcohol), by=0.5),
+                 col="black",
+                 fill="blue",
+                 alpha=.8) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title="Histogram for alcohol", x="alcohol", 
+       y="Relatvie frequency (%)") +
+  theme(plot.title = element_text(size = 7, hjust = 0.5),
+        axis.title.y = element_text(size = 7),
+        axis.title.x = element_text(size = 7),
+        axis.text.y = element_text(size = 5),
+        axis.text.x = element_text(size = 5))
+```
+
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+df_quality <- as.data.frame(table(data$quality))
+
+# Compute the position of labels
+dt_quality <- df_quality %>% 
+  arrange(desc(Var1)) %>%
+  mutate(prop = Freq / sum(df_quality$Freq) *100) %>%
+  mutate(ypos = cumsum(prop)- 0.5*prop )
+dt_quality <- rename(dt_quality, Quality = Var1)
+
+p12 <- ggplot(dt_quality, aes(x="", y=prop, fill=Quality)) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar(theta = "y", start=0) +
+  scale_fill_manual(values=c("yellow", "steelblue", "#87BE83", "red", "#6600CC",
+                             "gray")) +
+  theme_void() +
+  theme(plot.title = element_text(size = 7, hjust = 0.5),
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank(),
+        panel.border = element_blank(),
+        panel.grid = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text.x = element_blank(),
+        legend.key.size = unit(0.3, 'cm'), #change legend key size
+        legend.key.height = unit(0.3, 'cm'), #change legend key height
+        legend.key.width = unit(0.3, 'cm'), #change legend key width
+        legend.title = element_text(size=10), #change legend title font size
+        legend.text = element_text(size=7), #change legend text font size
+        legend.position = "right") +
+  geom_text(aes(y = ypos, label = paste(Quality, "\n", Freq)), size=2, 
+            face = "bold") +
+  labs(title="Pie Chart for quality")
+```
+
+```{r warning=FALSE, message=FALSE}
+gs <- list(grobTree(ggplotGrob(p1)), grobTree(ggplotGrob(p2)), grobTree(ggplotGrob(p3)),
+           grobTree(ggplotGrob(p4)), grobTree(ggplotGrob(p5)), grobTree(ggplotGrob(p6)),
+           grobTree(ggplotGrob(p7)), grobTree(ggplotGrob(p8)), grobTree(ggplotGrob(p9)),
+           grobTree(ggplotGrob(p10)), grobTree(ggplotGrob(p11)), grobTree(ggplotGrob(p12)))
+lay <- rbind(c(1,1,2,2,3,3), c(4,4,5,5,6,6), c(7,7,8,8,9,9), c(10,10,11,11,12,12))
+grid.arrange(grobs = gs, layout_matrix = lay)
+```
 
 ## 4. Anàlisi de les dades.
 ### 4.1. Selecció dels grups de dades que es volen analitzar/comparar (planificació dels anàlisis a aplicar).
