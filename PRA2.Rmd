@@ -16,10 +16,15 @@ library(dplyr)
 library(gridExtra)
 library(grid)
 library(car)
+library(corrplot)
+library(Hmisc)
+library(caTools)
+# library(kableExtra)
 ```
 
 
 ## 1. Descripció del dataset. Perquè és important i quina pregunta/problema pretén respondre?
+
 El dataset triat és el proporcionat en aquesta pràctica sota el nom de Red Wine Quality (https://www.kaggle.com/uciml/red-wine-quality-cortez-et-al-2009 ). Aquest dataset conté una sèrie de paràmetres mesurats en diferents tipus de vi i una qualificació final d'aquest en funció de les notes obtingudes en tots els paràmetres.
 
 El dataset es compon 1599 registres en els que s'informa per a cadascun d'aquest els següents paràmetres o columnes:
@@ -658,8 +663,101 @@ Tal com ens mostra la funció d'R només hi ha cinc atributs que passen el test 
 
 ### 4.3. Aplicació de proves estadístiques per comparar els grups de dades. En funció de les dades i de l’objectiu de l’estudi, aplicar proves de contrast d’hipòtesis, correlacions, regressions, etc. Aplicar almenys tres mètodes d’anàlisi diferents.
 
+Com que l'objectiu final del nostre estudi és crear un model de regressió logística per poder classificar els vins en bons o normals amb el nou atribut creat anteriorment, creiem necessari primer realitzar un test de correlació per tal de descartar els atributs que mostrin una forta correlació, ja que si es dóna el cas, el nostre model donará més importància a aquests atributs i possiblement no classificarà de manera correcte els vins.
+
+```{r fig.height=6}
+data_corr <- data[,c(-12,-13)]
+array_corr <- rcorr(as.matrix(data_corr))
+corrplot(array_corr$r, method = 'number', bg = '#444444')
+```
+
+De la taula anterior podem veure que no hi ha cap atribut que estigui fortament conrrelacionat amb algun altre, sí que s'observa alguna correlació per sobre del 60%, però aquests valors no són prou significatius per haver de descartar algun atribut, ja que el model no quedarà esviaixat per culpa d'aquesta dependència.
+
+
+La següent prova estadística que volem realitzar és un contrast d'hipòtesis sobre un dels atributs separat per la categoria de vi bo o vi normal. Per tal de fer això, hem de formular la hipòtesi nul·la i l'alternativa. En aquest cas ens centrarem en el nivell d'acidesa dels vins (pH), per tant, la nostra hipòtesi nul·la és que els vins bons tenen un valor de pH igual als vins normals. Al ser un test de tipus paramètric el que fem és comparar les mitjanes poblacionals de cada grup, per tant, el que estem afirmant amb la hipòtesi nul·la és que les mitjana de pH han de ser iguals: $$H_0: \mu_1 = \mu_2 \rightarrow H_0: \mu_1 - \mu_2 = 0$$
+
+Com a hipòtesi alternativa volem verificar que els vins bons tenen un valor de pH inferior als vins normals, és a dir, que els vins bons són menys àcids. El que estem afirmant amb la hipòtesi alternativa és que la mitjana de pH dels vins bons és inferior a la mitjana de pH dels vins normals: $$H_0: \mu_1 < \mu_2 \rightarrow H_0: \mu_1 - \mu_2 < 0$$
+
+
+```{r}
+# x <- data$pH[data$new.quality == "BO"]
+# y <- data$pH[data$new.quality == "NORMAL"]
+# t.test(x, y,
+#        alternative = "less", var.equal = FALSE, paired = FALSE)
+# t.test(data$pH[data$new.quality == "BO"], data$pH[data$new.quality == "NORMAL"],
+#        alternative = "less", var.equal = FALSE, paired = FALSE)
+# t.test(pH ~ new.quality, data = data,
+#        alternative = "less", var.equal = FALSE, paired = FALSE)
+```
+
+Un cop realitzat el test T de Student veiem que la hipòtesi nul·la no es compleix, per tant queda descartat que els vins bons i normals tenen el mateix nivell de pH. Aquest test també ens mostra el valor de les mitjanes poblacionals de cada grup i podem verificar com la nostra hipòtesi alternativa és correcta, els vins normals tenen un nivell de pH més gran que els bons.
+
+
+Finalment, la última prova estadística que volem aplicar sobre el joc de dades és la de crear un model de regressió logística per tal de ser capaços de dir si un vi serà bo o normal en funció dels diferents atributs del joc de dades. Per començar el que hem de fer és separar el joc de dades entre entrenament i test, normalment es sol agafar el 80% de les mostres per l'entrenament i el 20% restant per la validació del model i veure que és capaç de generalitzar correctament.
+
+
+```{r}
+df <- data[,-12]
+sample = sample.split(df$new.quality, SplitRatio = .8)
+train = subset(df, sample == TRUE)
+test  = subset(df, sample == FALSE)
+```
+
+Un cop ja tenim el joc de dades separat en entrenament i test el que fem és entrenar el model amb les dades d'entrenament.
+
+```{r}
+Model <- glm(formula = new.quality ~ .,
+                family = binomial(link = "logit"), data = train)
+summary(Model)
+```
+Un cop fet l'entrenament, la sortida de la funció d'R ens mostra amb *** els atributs més rellevants o que tenen més importància a l'hora de classificar les dades. Un cop ja tenim el model entrenat, el següent pas és validar-lo per veure si és capaç de generalitzar de manera correcte i classificar bé dades que no ha vist durant l'entrenament. Primer farem la predicció i després mostrarem una taula els resultats obtinguts de la predicció.
+
+```{r}
+# pred <- predict(Model, test, type = "response")
+# t_conf <- table(test$new.quality, pred >= 0.5)
+# VP <- t_conf[1,1]
+# VN <- t_conf[2,2]
+# FP <- t_conf[1,2]
+# FN <- t_conf[2,1]
+# t_conf
+# t_conf%>%
+#   kbl(caption = "Taula 1: Matriu de confusió", align = 'c', col.names = c("BO", "NORMAL")) %>%
+#   kable_classic(c("striped", "hover", "condensed", "responsive"), full_width = F) %>%
+#   row_spec(0, bold = TRUE) %>%
+#   column_spec(1, bold = TRUE)
+```
+
+
+
+
+
+En vista dels resultats obtinguts podem veure que el joc de dades de test tenia 171 vins bons, dels quals 130 ha classificat de manera correcta, pel que fa als vins normals, el joc de test disposava de 149 mostres, de les quals 108 les ha classificat de manera satisfactòria. A més a més, d'aquesta taula en podem calcular les mesures de rendiment del nostre model. L'exactitud del model seria les mostres que ha classificat correctament respecte del total: 
+
+
 ## 5. Representació dels resultats a partir de taules i gràfiques.
+
+A mesura que hem anat resolent els apartats anteriors ja hem fet les gràfiques i taules corresponents, de manera que el fil de lectura no queda truncat en cas de concentrar-ho tot aquí.
 
 ## 6. Resolució del problema. A partir dels resultats obtinguts, quines són les conclusions? Els resultats permeten respondre al problema?
 
+El problema principal que ens haviem plantejat és si a partir dels atributs mesurats d'un vi podríem arribar a trobar un vi BO o NORMAL, per tal de poder constuir un model que ens permeti resoldre aquest problema hem creat un atribut nou derivat del de qualitat, de manera que hem agrupat els vins en BO i NORMAL en funció de si la qualitat era igual o superior a 6 o no, respectivament. En vista dels resultats obtinguts en el model de regressió logística podem dir que el model construït no és del tot bo, ja que una exactitud del voltant del 75% considerem que no és prou bona per un model de classificació. Així podem concloure que aquest estudi no ens ha servit per repondre a la pregunta principal que ens haviem plantejat, segurament utilitzant algun altre tipus d'algorisme d'aprenentatge supervisat podríem aconseguir resultats millors i que realment ens ajudessin a respondre la principal pregunta d'aquest problema.
+
 ## 7. Codi: Cal adjuntar el codi, preferiblement en R, amb el que s’ha realitzat la neteja, anàlisi i representació de les dades. Si ho preferiu, també podeu treballar en Python.
+
+Es pot trobal al repositori de github de cada un de nosaltres
+
+
+
+\begin{table}[t]
+
+\begin{center}
+\begin{tabular}{| c | c | c | c | }\hline
+\multicolumn{4}{ |c| }{TAULA DE CONTRIBUCIONS} \\ \hline
+INVESTIGACIÓ PRÈVIA & OMM & GRR \\
+REDACCIÓ DE LES RESPOSTES & OMM & GRR \\
+DESENVOLUPAMENT DEL CODI & OMM & GRR \\ \hline\end{tabular}
+
+\end{center}
+
+\end{table}
+
