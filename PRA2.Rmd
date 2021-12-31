@@ -19,7 +19,8 @@ library(car)
 library(corrplot)
 library(Hmisc)
 library(caTools)
-# library(kableExtra)
+library(kableExtra)
+library(pROC)
 ```
 
 
@@ -49,27 +50,19 @@ Podriem dir que aquest dataset preten estudiar les tendències dels diferents ti
 Per començar amb la integració de les dades, llegirem el fitxer *winequality-red.csv* en el que hi trobem totes les dades. Per fer-ho utilitzem la intrucció *read.csv()* passant com a paràmetres la ruta del fitxer i el separador de columnes que en aquest cas és una coma (;).
 
 ```{r message= FALSE, warning=FALSE}
-data<-read.csv("winequality-red.csv", sep=",")
+df<-read.csv("winequality-red.csv", sep=",")
 ```
 
 Ara tenim en la variable *data* tota la informació carregada i comprovem que cada variable és del tipus que s'espera:
 
 ```{r}
-sapply(data, function(x) { class(x) })
+sapply(df, function(x) { class(x) })
 ```
 
 Per tal de fer-nos una idea de la informació que contenen les variables utilitzem la funció *summary()* que ens permet veure com estant distribuits cada un dels seus valors
 
 ```{r}
-summary(data)
-```
-
-Per acabar aquesta primera part, per tal de poder treballar en anàlisis posteriors la variable categòrica **quality** hem vist que està definida com a enter, però per poder treballar de manera correcte amb ella l'haurem de convertir a tipus factor, per això era interessant utilitzar la funció *summary()* perquè ens permet veure el valor mínim i màxim que pren aquesta variable per tal de crear els factors de manera correcte.
-
-```{r}
-data$quality <- factor(data$quality, levels = min(data$quality):max(data$quality), 
-                       labels = min(data$quality):max(data$quality))
-summary(data)
+summary(df)
 ```
 
 ## 3. Neteja de les dades.
@@ -80,19 +73,19 @@ Comprobem si el joc de dades conté algun registre amb valors buits o nuls
 ```{r echo=TRUE, message=FALSE, warning=FALSE}
 # Comprobem si hi ha valors NA o buits
 "NA:"
-colSums(is.na(data))
+colSums(is.na(df))
 
 "Buits:"
-colSums(data=="")
+colSums(df=="")
 
-# Com que amb altres datasets que hem treballat hi havia volrs amb "?". 
+# Com que amb altres datasets que hem treballat hi havia valors amb "?". 
 # comprobem si també n'hi ha
 "?:"
-colSums(data==" ?")
+colSums(df==" ?")
 
 # Comprobem si hi ha registres amb 0s
 "0's:"
-colSums(data==0)
+colSums(df==0)
 ```
 
 Després d'aquest primer anàlisi veiem que l'únic atribut que ofereix registres amb valors 0 és el que fa referència a l'acid cítric, després de consultar vàries fonts (com per exemple: https://wineserver.ucdavis.edu/industry-info/enology/methods-and-techniques/common-chemical-reagents/citric-acid, https://www.randoxfood.com/why-is-testing-for-citric-acid-important-in-winemaking/) desaconsellen utilitzar aquest tipus d'àcid perquè pot provocar el creixament de bactèries no desitjades i en cas de fer-lo servir s'ha de fer en quantitats molt baixes (< 1g/l) per això considerem aquests valors com a vàlids i en aquest apartat no hi ha res més a fer.
@@ -102,9 +95,9 @@ Després d'aquest primer anàlisi veiem que l'únic atribut que ofereix registre
 Per tal d'avaluar els valors extrems ens ajudem de les gràfiques d'histogrames, ja que tots els atributs són de tipus numèric, per tal de veure quina distribució segueixen.
 
 ```{r warning=FALSE, message=FALSE, echo=FALSE}
-p1 <- ggplot(data, aes(x=fixed.acidity)) + 
+p1 <- ggplot(df, aes(x=fixed.acidity)) + 
   geom_histogram(aes(y=stat(count) / sum(count)),
-                 breaks=seq(0, max(data$fixed.acidity), by=0.5),
+                 breaks=seq(0, max(df$fixed.acidity), by=0.5),
                  col="black",
                  fill="blue",
                  alpha=.8) +
@@ -116,9 +109,9 @@ p1 <- ggplot(data, aes(x=fixed.acidity)) +
         axis.title.x = element_text(size = 7),
         axis.text.y = element_text(size = 5),
         axis.text.x = element_text(size = 5))
-p2 <- ggplot(data, aes(x=volatile.acidity)) + 
+p2 <- ggplot(df, aes(x=volatile.acidity)) + 
   geom_histogram(aes(y=stat(count) / sum(count)),
-                 breaks=seq(0, max(data$volatile.acidity), by=0.08),
+                 breaks=seq(0, max(df$volatile.acidity), by=0.08),
                  col="black",
                  fill="blue",
                  alpha=.8) +
@@ -130,9 +123,9 @@ p2 <- ggplot(data, aes(x=volatile.acidity)) +
         axis.title.x = element_text(size = 7),
         axis.text.y = element_text(size = 5),
         axis.text.x = element_text(size = 5))
-p3 <- ggplot(data, aes(x=citric.acid)) + 
+p3 <- ggplot(df, aes(x=citric.acid)) + 
   geom_histogram(aes(y=stat(count) / sum(count)),
-                 breaks=seq(0, max(data$citric.acid), by=0.05),
+                 breaks=seq(0, max(df$citric.acid), by=0.05),
                  col="black",
                  fill="blue",
                  alpha=.8) +
@@ -144,9 +137,9 @@ p3 <- ggplot(data, aes(x=citric.acid)) +
         axis.title.x = element_text(size = 7),
         axis.text.y = element_text(size = 5),
         axis.text.x = element_text(size = 5))
-p4 <- ggplot(data, aes(x=residual.sugar)) + 
+p4 <- ggplot(df, aes(x=residual.sugar)) + 
   geom_histogram(aes(y=stat(count) / sum(count)),
-                 breaks=seq(0, max(data$residual.sugar), by=0.8),
+                 breaks=seq(0, max(df$residual.sugar), by=0.8),
                  col="black",
                  fill="blue",
                  alpha=.8) +
@@ -158,9 +151,9 @@ p4 <- ggplot(data, aes(x=residual.sugar)) +
         axis.title.x = element_text(size = 7),
         axis.text.y = element_text(size = 5),
         axis.text.x = element_text(size = 5))
-p5 <- ggplot(data, aes(x=chlorides)) + 
+p5 <- ggplot(df, aes(x=chlorides)) + 
   geom_histogram(aes(y=stat(count) / sum(count)),
-                 breaks=seq(0, max(data$chlorides), by=0.03),
+                 breaks=seq(0, max(df$chlorides), by=0.03),
                  col="black",
                  fill="blue",
                  alpha=.8) +
@@ -172,9 +165,9 @@ p5 <- ggplot(data, aes(x=chlorides)) +
         axis.title.x = element_text(size = 7),
         axis.text.y = element_text(size = 5),
         axis.text.x = element_text(size = 5))
-p6 <- ggplot(data, aes(x=free.sulfur.dioxide)) + 
+p6 <- ggplot(df, aes(x=free.sulfur.dioxide)) + 
   geom_histogram(aes(y=stat(count) / sum(count)),
-                 breaks=seq(0, max(data$free.sulfur.dioxide), by=2),
+                 breaks=seq(0, max(df$free.sulfur.dioxide), by=2),
                  col="black",
                  fill="blue",
                  alpha=.8) +
@@ -186,9 +179,9 @@ p6 <- ggplot(data, aes(x=free.sulfur.dioxide)) +
         axis.title.x = element_text(size = 7),
         axis.text.y = element_text(size = 5),
         axis.text.x = element_text(size = 5))
-p7 <- ggplot(data, aes(x=total.sulfur.dioxide)) + 
+p7 <- ggplot(df, aes(x=total.sulfur.dioxide)) + 
   geom_histogram(aes(y=stat(count) / sum(count)),
-                 breaks=seq(0, max(data$total.sulfur.dioxide), by=10),
+                 breaks=seq(0, max(df$total.sulfur.dioxide), by=10),
                  col="black",
                  fill="blue",
                  alpha=.8) +
@@ -200,9 +193,9 @@ p7 <- ggplot(data, aes(x=total.sulfur.dioxide)) +
         axis.title.x = element_text(size = 7),
         axis.text.y = element_text(size = 5),
         axis.text.x = element_text(size = 5))
-p8 <- ggplot(data, aes(x=density)) + 
+p8 <- ggplot(df, aes(x=density)) + 
   geom_histogram(aes(y=stat(count) / sum(count)),
-                 breaks=seq(0.98, max(data$density), by=0.001),
+                 breaks=seq(0.98, max(df$density), by=0.001),
                  col="black",
                  fill="blue",
                  alpha=.8) +
@@ -214,9 +207,9 @@ p8 <- ggplot(data, aes(x=density)) +
         axis.title.x = element_text(size = 7),
         axis.text.y = element_text(size = 5),
         axis.text.x = element_text(size = 5))
-p9 <- ggplot(data, aes(x=pH)) + 
+p9 <- ggplot(df, aes(x=pH)) + 
   geom_histogram(aes(y=stat(count) / sum(count)),
-                 breaks=seq(2, max(data$pH), by=0.1),
+                 breaks=seq(2, max(df$pH), by=0.1),
                  col="black",
                  fill="blue",
                  alpha=.8) +
@@ -228,9 +221,9 @@ p9 <- ggplot(data, aes(x=pH)) +
         axis.title.x = element_text(size = 7),
         axis.text.y = element_text(size = 5),
         axis.text.x = element_text(size = 5))
-p10 <- ggplot(data, aes(x=sulphates)) + 
+p10 <- ggplot(df, aes(x=sulphates)) + 
   geom_histogram(aes(y=stat(count) / sum(count)),
-                 breaks=seq(0, max(data$sulphates), by=0.08),
+                 breaks=seq(0, max(df$sulphates), by=0.08),
                  col="black",
                  fill="blue",
                  alpha=.8) +
@@ -242,9 +235,9 @@ p10 <- ggplot(data, aes(x=sulphates)) +
         axis.title.x = element_text(size = 7),
         axis.text.y = element_text(size = 5),
         axis.text.x = element_text(size = 5))
-p11 <- ggplot(data, aes(x=alcohol)) + 
+p11 <- ggplot(df, aes(x=alcohol)) + 
   geom_histogram(aes(y=stat(count) / sum(count)),
-                 breaks=seq(7, max(data$alcohol), by=0.5),
+                 breaks=seq(7, max(df$alcohol), by=0.5),
                  col="black",
                  fill="blue",
                  alpha=.8) +
@@ -259,7 +252,7 @@ p11 <- ggplot(data, aes(x=alcohol)) +
 ```
 
 ```{r warning=FALSE, message=FALSE, echo=FALSE}
-df_quality <- as.data.frame(table(data$quality))
+df_quality <- as.data.frame(table(df$quality))
 
 # Compute the position of labels
 dt_quality <- df_quality %>% 
@@ -306,109 +299,109 @@ Analitzant els histogrames de les gràfiques anteriors, considerem que els atrib
 Donat que el nombre de registres que presenten valors extrems és molt elevat, la nostra decisió és subsituir aquests valors per la mitjana que prenen segons la categoria a la qual està classificat cada registre, ja que si obtéssim per eliminar registres considerem que es perdrien moltes mostres. Per tal de validar que la substitució s'ha fet de forma correcte, en cada iteració mostrem el valor abans i després del registre a evaluar.
 
 ```{r fig.height=2.5, fig.width=5}
-bp.fa <- boxplot(data$fixed.acidity, main = "Fixed Acidity")
+bp.fa <- boxplot(df$fixed.acidity, main = "Fixed Acidity")
 bp.fa$out
-for(q in unique(data$quality)) {
-  idx <- which((data$fixed.acidity > mean(data$fixed.acidity) + 3*sd(data$fixed.acidity))
-      & (data$quality == q))
+for(q in unique(df$quality)) {
+  idx <- which((df$fixed.acidity > mean(df$fixed.acidity) + 3*sd(df$fixed.acidity))
+      & (df$quality == q))
   if(length(idx) > 0) {
     print(q)
-    print(data$fixed.acidity[idx])
-    m <- mean(data$fixed.acidity[(data$fixed.acidity <= mean(data$fixed.acidity) + 
-                                        3*sd(data$fixed.acidity)) & (data$quality == q)])
+    print(df$fixed.acidity[idx])
+    m <- mean(df$fixed.acidity[(df$fixed.acidity <= mean(df$fixed.acidity) + 
+                                        3*sd(df$fixed.acidity)) & (df$quality == q)])
    
-    data$fixed.acidity[idx] <- m
-    print(data$fixed.acidity[idx])
+    df$fixed.acidity[idx] <- m
+    print(df$fixed.acidity[idx])
   }
 }
-bp.va <- boxplot(data$volatile.acidity, main = "Volatile Acidity")
+bp.va <- boxplot(df$volatile.acidity, main = "Volatile Acidity")
 bp.va$out
-for(q in unique(data$quality)) {
-  idx <- which((data$volatile.acidity > mean(data$volatile.acidity) + 
-                  3*sd(data$volatile.acidity))  & (data$quality == q))
+for(q in unique(df$quality)) {
+  idx <- which((df$volatile.acidity > mean(df$volatile.acidity) + 
+                  3*sd(df$volatile.acidity))  & (df$quality == q))
     if(length(idx) > 0) {
     print(q)
-    print(data$volatile.acidity[idx])
-    m <- mean(data$volatile.acidity[(data$volatile.acidity <= mean(data$volatile.acidity) + 
-                                        3*sd(data$volatile.acidity)) & (data$quality == q)])
+    print(df$volatile.acidity[idx])
+    m <- mean(df$volatile.acidity[(df$volatile.acidity <= mean(df$volatile.acidity) + 
+                                        3*sd(df$volatile.acidity)) & (df$quality == q)])
    
-    data$volatile.acidity[idx] <- m
-    print(data$volatile.acidity[idx])
+    df$volatile.acidity[idx] <- m
+    print(df$volatile.acidity[idx])
   }
 }
-bp.rs <- boxplot(data$residual.sugar, main = "Residual Sugar")
+bp.rs <- boxplot(df$residual.sugar, main = "Residual Sugar")
 bp.rs$out
-for(q in unique(data$quality)) {
-  idx <- which((data$residual.sugar > mean(data$residual.sugar) + 3*sd(data$residual.sugar))
-      & (data$quality == q))
+for(q in unique(df$quality)) {
+  idx <- which((df$residual.sugar > mean(df$residual.sugar) + 3*sd(df$residual.sugar))
+      & (df$quality == q))
   if(length(idx) > 0) {
     print(q)
-    print(data$residual.sugar[idx])
-    m <- mean(data$residual.sugar[(data$residual.sugar <= mean(data$residual.sugar) + 
-                                        3*sd(data$residual.sugar)) & (data$quality == q)])
+    print(df$residual.sugar[idx])
+    m <- mean(df$residual.sugar[(df$residual.sugar <= mean(df$residual.sugar) + 
+                                        3*sd(df$residual.sugar)) & (df$quality == q)])
    
-    data$residual.sugar[idx] <- m
-    print(data$residual.sugar[idx])
+    df$residual.sugar[idx] <- m
+    print(df$residual.sugar[idx])
   }
 }
-bp.ch <- boxplot(data$chlorides, main = "Chlorides")
+bp.ch <- boxplot(df$chlorides, main = "Chlorides")
 bp.ch$out
-for(q in unique(data$quality)) {
-  idx <- which((data$chlorides > mean(data$chlorides) + 3*sd(data$chlorides))
-      & (data$quality == q))
+for(q in unique(df$quality)) {
+  idx <- which((df$chlorides > mean(df$chlorides) + 3*sd(df$chlorides))
+      & (df$quality == q))
   if(length(idx) > 0) {
     print(q)
-    print(data$chlorides[idx])
-    m <- mean(data$chlorides[(data$chlorides <= mean(data$chlorides) + 
-                                        3*sd(data$chlorides)) & (data$quality == q)])
+    print(df$chlorides[idx])
+    m <- mean(df$chlorides[(df$chlorides <= mean(df$chlorides) + 
+                                        3*sd(df$chlorides)) & (df$quality == q)])
    
-    data$chlorides[idx] <- m
-    print(data$chlorides[idx])
+    df$chlorides[idx] <- m
+    print(df$chlorides[idx])
   }
 }
-bp.fsd <- boxplot(data$free.sulfur.dioxide, main = "Free Sulfur Dioxide")
+bp.fsd <- boxplot(df$free.sulfur.dioxide, main = "Free Sulfur Dioxide")
 bp.fsd$out
-for(q in unique(data$quality)) {
-  idx <- which((data$free.sulfur.dioxide > mean(data$free.sulfur.dioxide) + 3*sd(data$free.sulfur.dioxide))
-      & (data$quality == q))
+for(q in unique(df$quality)) {
+  idx <- which((df$free.sulfur.dioxide > mean(df$free.sulfur.dioxide) + 3*sd(df$free.sulfur.dioxide))
+      & (df$quality == q))
   if(length(idx) > 0) {
     print(q)
-    print(data$free.sulfur.dioxide[idx])
-    m <- mean(data$free.sulfur.dioxide[(data$free.sulfur.dioxide <= mean(data$free.sulfur.dioxide) + 
-                                        3*sd(data$free.sulfur.dioxide)) & (data$quality == q)])
+    print(df$free.sulfur.dioxide[idx])
+    m <- mean(df$free.sulfur.dioxide[(df$free.sulfur.dioxide <= mean(df$free.sulfur.dioxide) + 
+                                        3*sd(df$free.sulfur.dioxide)) & (df$quality == q)])
    
-    data$free.sulfur.dioxide[idx] <- m
-    print(data$free.sulfur.dioxide[idx])
+    df$free.sulfur.dioxide[idx] <- m
+    print(df$free.sulfur.dioxide[idx])
   }
 }
-bp.tsd <- boxplot(data$total.sulfur.dioxide, main = "Total Sulfur Dioxide")
+bp.tsd <- boxplot(df$total.sulfur.dioxide, main = "Total Sulfur Dioxide")
 bp.tsd$out
-for(q in unique(data$quality)) {
-  idx <- which((data$total.sulfur.dioxide > mean(data$total.sulfur.dioxide) + 3*sd(data$total.sulfur.dioxide))
-      & (data$quality == q))
+for(q in unique(df$quality)) {
+  idx <- which((df$total.sulfur.dioxide > mean(df$total.sulfur.dioxide) + 3*sd(df$total.sulfur.dioxide))
+      & (df$quality == q))
   if(length(idx) > 0) {
     print(q)
-    print(data$total.sulfur.dioxide[idx])
-    m <- mean(data$total.sulfur.dioxide[(data$total.sulfur.dioxide <= mean(data$total.sulfur.dioxide) + 
-                                        3*sd(data$total.sulfur.dioxide)) & (data$quality == q)])
+    print(df$total.sulfur.dioxide[idx])
+    m <- mean(df$total.sulfur.dioxide[(df$total.sulfur.dioxide <= mean(df$total.sulfur.dioxide) + 
+                                        3*sd(df$total.sulfur.dioxide)) & (df$quality == q)])
    
-    data$total.sulfur.dioxide[idx] <- m
-    print(data$total.sulfur.dioxide[idx])
+    df$total.sulfur.dioxide[idx] <- m
+    print(df$total.sulfur.dioxide[idx])
   }
 }
-bp.su <- boxplot(data$sulphates, main = "Sulphates")
+bp.su <- boxplot(df$sulphates, main = "Sulphates")
 bp.su$out
-for(q in unique(data$quality)) {
-  idx <- which((data$sulphates > mean(data$sulphates) + 3*sd(data$sulphates))
-      & (data$quality == q))
+for(q in unique(df$quality)) {
+  idx <- which((df$sulphates > mean(df$sulphates) + 3*sd(df$sulphates))
+      & (df$quality == q))
   if(length(idx) > 0) {
     print(q)
-    print(data$sulphates[idx])
-    m <- mean(data$sulphates[(data$sulphates <= mean(data$sulphates) + 
-                                        3*sd(data$sulphates)) & (data$quality == q)])
+    print(df$sulphates[idx])
+    m <- mean(df$sulphates[(df$sulphates <= mean(df$sulphates) + 
+                                        3*sd(df$sulphates)) & (df$quality == q)])
    
-    data$sulphates[idx] <- m
-    print(data$sulphates[idx])
+    df$sulphates[idx] <- m
+    print(df$sulphates[idx])
   }
 }
 ```
@@ -422,12 +415,12 @@ Per tal de poder realitzar els anàlisis de manera correcte considerem com a mil
 
 
 ```{r}
-data$new.quality <- rep("NORMAL", length(data$quality))
-idx <- which(data$quality >= 6)
-data$new.quality[idx] <- rep("BO", length(idx))
-data$new.quality <- factor(data$new.quality, levels = c("BO", "NORMAL"),
+df$new.quality <- rep("NORMAL", length(df$quality))
+idx <- which(df$quality >= 6)
+df$new.quality[idx] <- rep("BO", length(idx))
+df$new.quality <- factor(df$new.quality, levels = c("BO", "NORMAL"),
                            labels = c("BO", "NORMAL"))
-summary(data)
+summary(df)
 ```
 
 ### 4.2. Comprovació de la normalitat i homogeneïtat de la variància.
@@ -435,16 +428,16 @@ summary(data)
 Per tal de poder comprovar la normalitat dels diferents atributs amb les dues categories noves creades hem decidit fer-ho per inspecció visual amb els gràfics Q-Q. Aquests ens permeten veure les mostres en un pla i una recta, si les mostres en aquest pla segueixen la línia recta es pot considerar que la mostra segueix una distribució normal.
 
 ```{r warning=FALSE, message=FALSE, echo=FALSE}
-q1 <- ggplot(data[data$new.quality == "BO",], aes(sample = fixed.acidity[data$new.quality == "BO"])) + 
-  geom_qq(aes(sample = fixed.acidity[data$new.quality == "BO"]), color="#FF5624", alpha = 0.6) + 
+q1 <- ggplot(df[df$new.quality == "BO",], aes(sample = fixed.acidity[df$new.quality == "BO"])) + 
+  geom_qq(aes(sample = fixed.acidity[df$new.quality == "BO"]), color="#FF5624", alpha = 0.6) + 
   stat_qq_line() + labs(title="Q-Q Plot for fixed.acidity quality = BO") +
   theme(plot.title = element_text(size = 7, hjust = 0.5),
         panel.grid = element_blank(), panel.background = element_blank(),
         axis.title.y = element_text(size = 7), axis.text.y = element_text(size = 5),
         axis.title.x = element_text(size = 7), axis.ticks = element_blank(),
         axis.text.x = element_text(size = 5))
-q2 <- ggplot(data[data$new.quality == "NORMAL",], aes(sample = fixed.acidity[data$new.quality == "NORMAL"])) + 
-  geom_qq(aes(sample = fixed.acidity[data$new.quality == "NORMAL"]), color="#FF5624", alpha = 0.6) + 
+q2 <- ggplot(df[df$new.quality == "NORMAL",], aes(sample = fixed.acidity[df$new.quality == "NORMAL"])) + 
+  geom_qq(aes(sample = fixed.acidity[df$new.quality == "NORMAL"]), color="#FF5624", alpha = 0.6) + 
   stat_qq_line() + labs(title="Q-Q Plot for fixed.acidity quality = NORMAL") +
   theme(plot.title = element_text(size = 7, hjust = 0.5),
         panel.grid = element_blank(), panel.background = element_blank(),
@@ -452,16 +445,16 @@ q2 <- ggplot(data[data$new.quality == "NORMAL",], aes(sample = fixed.acidity[dat
         axis.title.x = element_text(size = 7), axis.ticks = element_blank(),
         axis.text.x = element_text(size = 5))
 
-q3 <- ggplot(data[data$new.quality == "BO",], aes(sample = volatile.acidity[data$new.quality == "BO"])) + 
-  geom_qq(aes(sample = volatile.acidity[data$new.quality == "BO"]), color="#FF5624", alpha = 0.6) + 
+q3 <- ggplot(df[df$new.quality == "BO",], aes(sample = volatile.acidity[df$new.quality == "BO"])) + 
+  geom_qq(aes(sample = volatile.acidity[df$new.quality == "BO"]), color="#FF5624", alpha = 0.6) + 
   stat_qq_line() + labs(title="Q-Q Plot for volatile.acidity quality = BO") +
   theme(plot.title = element_text(size = 7, hjust = 0.5),
         panel.grid = element_blank(), panel.background = element_blank(),
         axis.title.y = element_text(size = 7), axis.text.y = element_text(size = 5),
         axis.title.x = element_text(size = 7), axis.ticks = element_blank(),
         axis.text.x = element_text(size = 5))
-q4 <- ggplot(data[data$new.quality == "NORMAL",], aes(sample = volatile.acidity[data$new.quality == "NORMAL"])) + 
-  geom_qq(aes(sample = volatile.acidity[data$new.quality == "NORMAL"]), color="#FF5624", alpha = 0.6) + 
+q4 <- ggplot(df[df$new.quality == "NORMAL",], aes(sample = volatile.acidity[df$new.quality == "NORMAL"])) + 
+  geom_qq(aes(sample = volatile.acidity[df$new.quality == "NORMAL"]), color="#FF5624", alpha = 0.6) + 
   stat_qq_line() + labs(title="Q-Q Plot for volatile.acidity quality = NORMAL") +
   theme(plot.title = element_text(size = 7, hjust = 0.5),
         panel.grid = element_blank(), panel.background = element_blank(),
@@ -469,16 +462,16 @@ q4 <- ggplot(data[data$new.quality == "NORMAL",], aes(sample = volatile.acidity[
         axis.title.x = element_text(size = 7), axis.ticks = element_blank(),
         axis.text.x = element_text(size = 5))
 
-q5 <- ggplot(data[data$new.quality == "BO",], aes(sample = citric.acid[data$new.quality == "BO"])) + 
-  geom_qq(aes(sample = citric.acid[data$new.quality == "BO"]), color="#FF5624", alpha = 0.6) + 
+q5 <- ggplot(df[df$new.quality == "BO",], aes(sample = citric.acid[df$new.quality == "BO"])) + 
+  geom_qq(aes(sample = citric.acid[df$new.quality == "BO"]), color="#FF5624", alpha = 0.6) + 
   stat_qq_line() + labs(title="Q-Q Plot for citric.acid quality = BO") +
   theme(plot.title = element_text(size = 7, hjust = 0.5),
         panel.grid = element_blank(), panel.background = element_blank(),
         axis.title.y = element_text(size = 7), axis.text.y = element_text(size = 5),
         axis.title.x = element_text(size = 7), axis.ticks = element_blank(),
         axis.text.x = element_text(size = 5))
-q6 <- ggplot(data[data$new.quality == "NORMAL",], aes(sample = citric.acid[data$new.quality == "NORMAL"])) + 
-  geom_qq(aes(sample = citric.acid[data$new.quality == "NORMAL"]), color="#FF5624", alpha = 0.6) + 
+q6 <- ggplot(df[df$new.quality == "NORMAL",], aes(sample = citric.acid[df$new.quality == "NORMAL"])) + 
+  geom_qq(aes(sample = citric.acid[df$new.quality == "NORMAL"]), color="#FF5624", alpha = 0.6) + 
   stat_qq_line() + labs(title="Q-Q Plot for citric.acid quality = NORMAL") +
   theme(plot.title = element_text(size = 7, hjust = 0.5),
         panel.grid = element_blank(), panel.background = element_blank(),
@@ -486,16 +479,16 @@ q6 <- ggplot(data[data$new.quality == "NORMAL",], aes(sample = citric.acid[data$
         axis.title.x = element_text(size = 7), axis.ticks = element_blank(),
         axis.text.x = element_text(size = 5))
 
-q7 <- ggplot(data[data$new.quality == "BO",], aes(sample = residual.sugar[data$new.quality == "BO"])) + 
-  geom_qq(aes(sample = residual.sugar[data$new.quality == "BO"]), color="#FF5624", alpha = 0.6) + 
+q7 <- ggplot(df[df$new.quality == "BO",], aes(sample = residual.sugar[df$new.quality == "BO"])) + 
+  geom_qq(aes(sample = residual.sugar[df$new.quality == "BO"]), color="#FF5624", alpha = 0.6) + 
   stat_qq_line() + labs(title="Q-Q Plot for residual.sugar quality = BO") +
   theme(plot.title = element_text(size = 7, hjust = 0.5),
         panel.grid = element_blank(), panel.background = element_blank(),
         axis.title.y = element_text(size = 7), axis.text.y = element_text(size = 5),
         axis.title.x = element_text(size = 7), axis.ticks = element_blank(),
         axis.text.x = element_text(size = 5))
-q8 <- ggplot(data[data$new.quality == "NORMAL",], aes(sample = residual.sugar[data$new.quality == "NORMAL"])) + 
-  geom_qq(aes(sample = residual.sugar[data$new.quality == "NORMAL"]), color="#FF5624", alpha = 0.6) + 
+q8 <- ggplot(df[df$new.quality == "NORMAL",], aes(sample = residual.sugar[df$new.quality == "NORMAL"])) + 
+  geom_qq(aes(sample = residual.sugar[df$new.quality == "NORMAL"]), color="#FF5624", alpha = 0.6) + 
   stat_qq_line() + labs(title="Q-Q Plot for residual.sugar quality = NORMAL") +
   theme(plot.title = element_text(size = 7, hjust = 0.5),
         panel.grid = element_blank(), panel.background = element_blank(),
@@ -503,16 +496,16 @@ q8 <- ggplot(data[data$new.quality == "NORMAL",], aes(sample = residual.sugar[da
         axis.title.x = element_text(size = 7), axis.ticks = element_blank(),
         axis.text.x = element_text(size = 5))
 
-q9 <- ggplot(data[data$new.quality == "BO",], aes(sample = chlorides[data$new.quality == "BO"])) + 
-  geom_qq(aes(sample = chlorides[data$new.quality == "BO"]), color="#FF5624", alpha = 0.6) + 
+q9 <- ggplot(df[df$new.quality == "BO",], aes(sample = chlorides[df$new.quality == "BO"])) + 
+  geom_qq(aes(sample = chlorides[df$new.quality == "BO"]), color="#FF5624", alpha = 0.6) + 
   stat_qq_line() + labs(title="Q-Q Plot for chlorides quality = BO") +
   theme(plot.title = element_text(size = 7, hjust = 0.5),
         panel.grid = element_blank(), panel.background = element_blank(),
         axis.title.y = element_text(size = 7), axis.text.y = element_text(size = 5),
         axis.title.x = element_text(size = 7), axis.ticks = element_blank(),
         axis.text.x = element_text(size = 5))
-q10 <- ggplot(data[data$new.quality == "NORMAL",], aes(sample = chlorides[data$new.quality == "NORMAL"])) + 
-  geom_qq(aes(sample = chlorides[data$new.quality == "NORMAL"]), color="#FF5624", alpha = 0.6) + 
+q10 <- ggplot(df[df$new.quality == "NORMAL",], aes(sample = chlorides[df$new.quality == "NORMAL"])) + 
+  geom_qq(aes(sample = chlorides[df$new.quality == "NORMAL"]), color="#FF5624", alpha = 0.6) + 
   stat_qq_line() + labs(title="Q-Q Plot for chlorides quality = NORMAL") +
   theme(plot.title = element_text(size = 7, hjust = 0.5),
         panel.grid = element_blank(), panel.background = element_blank(),
@@ -520,16 +513,16 @@ q10 <- ggplot(data[data$new.quality == "NORMAL",], aes(sample = chlorides[data$n
         axis.title.x = element_text(size = 7), axis.ticks = element_blank(),
         axis.text.x = element_text(size = 5))
 
-q11 <- ggplot(data[data$new.quality == "BO",], aes(sample = free.sulfur.dioxide[data$new.quality == "BO"])) + 
-  geom_qq(aes(sample = free.sulfur.dioxide[data$new.quality == "BO"]), color="#FF5624", alpha = 0.6) + 
+q11 <- ggplot(df[df$new.quality == "BO",], aes(sample = free.sulfur.dioxide[df$new.quality == "BO"])) + 
+  geom_qq(aes(sample = free.sulfur.dioxide[df$new.quality == "BO"]), color="#FF5624", alpha = 0.6) + 
   stat_qq_line() + labs(title="Q-Q Plot for free.sulfur.dioxide quality = BO") +
   theme(plot.title = element_text(size = 7, hjust = 0.5),
         panel.grid = element_blank(), panel.background = element_blank(),
         axis.title.y = element_text(size = 7), axis.text.y = element_text(size = 5),
         axis.title.x = element_text(size = 7), axis.ticks = element_blank(),
         axis.text.x = element_text(size = 5))
-q12 <- ggplot(data[data$new.quality == "NORMAL",], aes(sample = free.sulfur.dioxide[data$new.quality == "NORMAL"])) + 
-  geom_qq(aes(sample = free.sulfur.dioxide[data$new.quality == "NORMAL"]), color="#FF5624", alpha = 0.6) + 
+q12 <- ggplot(df[df$new.quality == "NORMAL",], aes(sample = free.sulfur.dioxide[df$new.quality == "NORMAL"])) + 
+  geom_qq(aes(sample = free.sulfur.dioxide[df$new.quality == "NORMAL"]), color="#FF5624", alpha = 0.6) + 
   stat_qq_line() + labs(title="Q-Q Plot for free.sulfur.dioxide quality = NORMAL") +
   theme(plot.title = element_text(size = 7, hjust = 0.5),
         panel.grid = element_blank(), panel.background = element_blank(),
@@ -537,16 +530,16 @@ q12 <- ggplot(data[data$new.quality == "NORMAL",], aes(sample = free.sulfur.diox
         axis.title.x = element_text(size = 7), axis.ticks = element_blank(),
         axis.text.x = element_text(size = 5))
 
-q13 <- ggplot(data[data$new.quality == "BO",], aes(sample = total.sulfur.dioxide[data$new.quality == "BO"])) + 
-  geom_qq(aes(sample = total.sulfur.dioxide[data$new.quality == "BO"]), color="#FF5624", alpha = 0.6) + 
+q13 <- ggplot(df[df$new.quality == "BO",], aes(sample = total.sulfur.dioxide[df$new.quality == "BO"])) + 
+  geom_qq(aes(sample = total.sulfur.dioxide[df$new.quality == "BO"]), color="#FF5624", alpha = 0.6) + 
   stat_qq_line() + labs(title="Q-Q Plot for total.sulfur.dioxide quality = BO") +
   theme(plot.title = element_text(size = 7, hjust = 0.5),
         panel.grid = element_blank(), panel.background = element_blank(),
         axis.title.y = element_text(size = 7), axis.text.y = element_text(size = 5),
         axis.title.x = element_text(size = 7), axis.ticks = element_blank(),
         axis.text.x = element_text(size = 5))
-q14 <- ggplot(data[data$new.quality == "NORMAL",], aes(sample = total.sulfur.dioxide[data$new.quality == "NORMAL"])) + 
-  geom_qq(aes(sample = total.sulfur.dioxide[data$new.quality == "NORMAL"]), color="#FF5624", alpha = 0.6) + 
+q14 <- ggplot(df[df$new.quality == "NORMAL",], aes(sample = total.sulfur.dioxide[df$new.quality == "NORMAL"])) + 
+  geom_qq(aes(sample = total.sulfur.dioxide[df$new.quality == "NORMAL"]), color="#FF5624", alpha = 0.6) + 
   stat_qq_line() + labs(title="Q-Q Plot for total.sulfur.dioxide quality = NORMAL") +
   theme(plot.title = element_text(size = 7, hjust = 0.5),
         panel.grid = element_blank(), panel.background = element_blank(),
@@ -554,16 +547,16 @@ q14 <- ggplot(data[data$new.quality == "NORMAL",], aes(sample = total.sulfur.dio
         axis.title.x = element_text(size = 7), axis.ticks = element_blank(),
         axis.text.x = element_text(size = 5))
 
-q15 <- ggplot(data[data$new.quality == "BO",], aes(sample = density[data$new.quality == "BO"])) + 
-  geom_qq(aes(sample = density[data$new.quality == "BO"]), color="#FF5624", alpha = 0.6) + 
+q15 <- ggplot(df[df$new.quality == "BO",], aes(sample = density[df$new.quality == "BO"])) + 
+  geom_qq(aes(sample = density[df$new.quality == "BO"]), color="#FF5624", alpha = 0.6) + 
   stat_qq_line() + labs(title="Q-Q Plot for density quality = BO") +
   theme(plot.title = element_text(size = 7, hjust = 0.5),
         panel.grid = element_blank(), panel.background = element_blank(),
         axis.title.y = element_text(size = 7), axis.text.y = element_text(size = 5),
         axis.title.x = element_text(size = 7), axis.ticks = element_blank(),
         axis.text.x = element_text(size = 5))
-q16 <- ggplot(data[data$new.quality == "NORMAL",], aes(sample = density[data$new.quality == "NORMAL"])) + 
-  geom_qq(aes(sample = density[data$new.quality == "NORMAL"]), color="#FF5624", alpha = 0.6) + 
+q16 <- ggplot(df[df$new.quality == "NORMAL",], aes(sample = density[df$new.quality == "NORMAL"])) + 
+  geom_qq(aes(sample = density[df$new.quality == "NORMAL"]), color="#FF5624", alpha = 0.6) + 
   stat_qq_line() + labs(title="Q-Q Plot for density quality = NORMAL") +
   theme(plot.title = element_text(size = 7, hjust = 0.5),
         panel.grid = element_blank(), panel.background = element_blank(),
@@ -571,16 +564,16 @@ q16 <- ggplot(data[data$new.quality == "NORMAL",], aes(sample = density[data$new
         axis.title.x = element_text(size = 7), axis.ticks = element_blank(),
         axis.text.x = element_text(size = 5))
 
-q17 <- ggplot(data[data$new.quality == "BO",], aes(sample = pH[data$new.quality == "BO"])) + 
-  geom_qq(aes(sample = pH[data$new.quality == "BO"]), color="#FF5624", alpha = 0.6) + 
+q17 <- ggplot(df[df$new.quality == "BO",], aes(sample = pH[df$new.quality == "BO"])) + 
+  geom_qq(aes(sample = pH[df$new.quality == "BO"]), color="#FF5624", alpha = 0.6) + 
   stat_qq_line() + labs(title="Q-Q Plot for pH quality = BO") +
   theme(plot.title = element_text(size = 7, hjust = 0.5),
         panel.grid = element_blank(), panel.background = element_blank(),
         axis.title.y = element_text(size = 7), axis.text.y = element_text(size = 5),
         axis.title.x = element_text(size = 7), axis.ticks = element_blank(),
         axis.text.x = element_text(size = 5))
-q18 <- ggplot(data[data$new.quality == "NORMAL",], aes(sample = pH[data$new.quality == "NORMAL"])) + 
-  geom_qq(aes(sample = pH[data$new.quality == "NORMAL"]), color="#FF5624", alpha = 0.6) + 
+q18 <- ggplot(df[df$new.quality == "NORMAL",], aes(sample = pH[df$new.quality == "NORMAL"])) + 
+  geom_qq(aes(sample = pH[df$new.quality == "NORMAL"]), color="#FF5624", alpha = 0.6) + 
   stat_qq_line() + labs(title="Q-Q Plot for pH quality = NORMAL") +
   theme(plot.title = element_text(size = 7, hjust = 0.5),
         panel.grid = element_blank(), panel.background = element_blank(),
@@ -588,16 +581,16 @@ q18 <- ggplot(data[data$new.quality == "NORMAL",], aes(sample = pH[data$new.qual
         axis.title.x = element_text(size = 7), axis.ticks = element_blank(),
         axis.text.x = element_text(size = 5))
 
-q19 <- ggplot(data[data$new.quality == "BO",], aes(sample = sulphates[data$new.quality == "BO"])) + 
-  geom_qq(aes(sample = sulphates[data$new.quality == "BO"]), color="#FF5624", alpha = 0.6) + 
+q19 <- ggplot(df[df$new.quality == "BO",], aes(sample = sulphates[df$new.quality == "BO"])) + 
+  geom_qq(aes(sample = sulphates[df$new.quality == "BO"]), color="#FF5624", alpha = 0.6) + 
   stat_qq_line() + labs(title="Q-Q Plot for sulphates quality = BO") +
   theme(plot.title = element_text(size = 7, hjust = 0.5),
         panel.grid = element_blank(), panel.background = element_blank(),
         axis.title.y = element_text(size = 7), axis.text.y = element_text(size = 5),
         axis.title.x = element_text(size = 7), axis.ticks = element_blank(),
         axis.text.x = element_text(size = 5))
-q20 <- ggplot(data[data$new.quality == "NORMAL",], aes(sample = sulphates[data$new.quality == "NORMAL"])) + 
-  geom_qq(aes(sample = sulphates[data$new.quality == "NORMAL"]), color="#FF5624", alpha = 0.6) + 
+q20 <- ggplot(df[df$new.quality == "NORMAL",], aes(sample = sulphates[df$new.quality == "NORMAL"])) + 
+  geom_qq(aes(sample = sulphates[df$new.quality == "NORMAL"]), color="#FF5624", alpha = 0.6) + 
   stat_qq_line() + labs(title="Q-Q Plot for sulphates quality = NORMAL") +
   theme(plot.title = element_text(size = 7, hjust = 0.5),
         panel.grid = element_blank(), panel.background = element_blank(),
@@ -605,16 +598,16 @@ q20 <- ggplot(data[data$new.quality == "NORMAL",], aes(sample = sulphates[data$n
         axis.title.x = element_text(size = 7), axis.ticks = element_blank(),
         axis.text.x = element_text(size = 5))
 
-q21 <- ggplot(data[data$new.quality == "BO",], aes(sample = alcohol[data$new.quality == "BO"])) + 
-  geom_qq(aes(sample = alcohol[data$new.quality == "BO"]), color="#FF5624", alpha = 0.6) + 
+q21 <- ggplot(df[df$new.quality == "BO",], aes(sample = alcohol[df$new.quality == "BO"])) + 
+  geom_qq(aes(sample = alcohol[df$new.quality == "BO"]), color="#FF5624", alpha = 0.6) + 
   stat_qq_line() + labs(title="Q-Q Plot for alcohol quality = BO") +
   theme(plot.title = element_text(size = 7, hjust = 0.5),
         panel.grid = element_blank(), panel.background = element_blank(),
         axis.title.y = element_text(size = 7), axis.text.y = element_text(size = 5),
         axis.title.x = element_text(size = 7), axis.ticks = element_blank(),
         axis.text.x = element_text(size = 5))
-q22 <- ggplot(data[data$new.quality == "NORMAL",], aes(sample = alcohol[data$new.quality == "NORMAL"])) + 
-  geom_qq(aes(sample = alcohol[data$new.quality == "NORMAL"]), color="#FF5624", alpha = 0.6) + 
+q22 <- ggplot(df[df$new.quality == "NORMAL",], aes(sample = alcohol[df$new.quality == "NORMAL"])) + 
+  geom_qq(aes(sample = alcohol[df$new.quality == "NORMAL"]), color="#FF5624", alpha = 0.6) + 
   stat_qq_line() + labs(title="Q-Q Plot for alcohol quality = NORMAL") +
   theme(plot.title = element_text(size = 7, hjust = 0.5),
         panel.grid = element_blank(), panel.background = element_blank(),
@@ -646,17 +639,17 @@ Després de graficar tots els atributs en el gràfic Q-Q corresponen podem consi
 A continuació passarem a comprovar la homogeneïtat entre variàncies, per fer-ho disposem del mètode paramètric (Test de Levene) o del no paramètric (Fligner-Killeen), en el nostre cas, com que anteriorment ja hem comprovat que totes les variables es podrien considerar que segueixen una distribució normal utilitzarem el Test de Levene per comprovar la homoscedasticitat de tots els atributs numèrics.
 
 ```{r warning=FALSE}
-with(data, leveneTest(fixed.acidity, quality))
-with(data, leveneTest(volatile.acidity, quality))
-with(data, leveneTest(citric.acid, quality))
-with(data, leveneTest(residual.sugar, quality))
-with(data, leveneTest(chlorides, quality))
-with(data, leveneTest(free.sulfur.dioxide, quality))
-with(data, leveneTest(total.sulfur.dioxide, quality))
-with(data, leveneTest(density, quality))
-with(data, leveneTest(pH, quality))
-with(data, leveneTest(sulphates, quality))
-with(data, leveneTest(alcohol, quality))
+with(df, leveneTest(fixed.acidity, quality))
+with(df, leveneTest(volatile.acidity, quality))
+with(df, leveneTest(citric.acid, quality))
+with(df, leveneTest(residual.sugar, quality))
+with(df, leveneTest(chlorides, quality))
+with(df, leveneTest(free.sulfur.dioxide, quality))
+with(df, leveneTest(total.sulfur.dioxide, quality))
+with(df, leveneTest(density, quality))
+with(df, leveneTest(pH, quality))
+with(df, leveneTest(sulphates, quality))
+with(df, leveneTest(alcohol, quality))
 ```
 
 Tal com ens mostra la funció d'R només hi ha cinc atributs que passen el test d'homogeneïtat de la variància ja que els seu p-valor > 0.05, aquests atributs són els següents: **residual.sugar, chlorides, free.sulfur.dioxide, pH i sulphates** els quals ens permetrant utilitzar testos de tipus paramètric, per la resta hauríem d'utilitzar testos de tipus no paramètric.
@@ -666,8 +659,8 @@ Tal com ens mostra la funció d'R només hi ha cinc atributs que passen el test 
 Com que l'objectiu final del nostre estudi és crear un model de regressió logística per poder classificar els vins en bons o normals amb el nou atribut creat anteriorment, creiem necessari primer realitzar un test de correlació per tal de descartar els atributs que mostrin una forta correlació, ja que si es dóna el cas, el nostre model donará més importància a aquests atributs i possiblement no classificarà de manera correcte els vins.
 
 ```{r fig.height=6}
-data_corr <- data[,c(-12,-13)]
-array_corr <- rcorr(as.matrix(data_corr))
+df_corr <- df[,c(-12,-13)]
+array_corr <- rcorr(as.matrix(df_corr))
 corrplot(array_corr$r, method = 'number', bg = '#444444')
 ```
 
@@ -680,14 +673,8 @@ Com a hipòtesi alternativa volem verificar que els vins bons tenen un valor de 
 
 
 ```{r}
-# x <- data$pH[data$new.quality == "BO"]
-# y <- data$pH[data$new.quality == "NORMAL"]
-# t.test(x, y,
-#        alternative = "less", var.equal = FALSE, paired = FALSE)
-# t.test(data$pH[data$new.quality == "BO"], data$pH[data$new.quality == "NORMAL"],
-#        alternative = "less", var.equal = FALSE, paired = FALSE)
-# t.test(pH ~ new.quality, data = data,
-#        alternative = "less", var.equal = FALSE, paired = FALSE)
+t.test(df$pH[df$new.quality == "BO"], df$pH[df$new.quality == "NORMAL"],
+       alternative = "less", var.equal = FALSE, paired = FALSE)
 ```
 
 Un cop realitzat el test T de Student veiem que la hipòtesi nul·la no es compleix, per tant queda descartat que els vins bons i normals tenen el mateix nivell de pH. Aquest test també ens mostra el valor de les mitjanes poblacionals de cada grup i podem verificar com la nostra hipòtesi alternativa és correcta, els vins normals tenen un nivell de pH més gran que els bons.
@@ -697,10 +684,10 @@ Finalment, la última prova estadística que volem aplicar sobre el joc de dades
 
 
 ```{r}
-df <- data[,-12]
-sample = sample.split(df$new.quality, SplitRatio = .8)
-train = subset(df, sample == TRUE)
-test  = subset(df, sample == FALSE)
+df_2 <- df[,-12]
+sample = sample.split(df_2$new.quality, SplitRatio = .8)
+train = subset(df_2, sample == TRUE)
+test  = subset(df_2, sample == FALSE)
 ```
 
 Un cop ja tenim el joc de dades separat en entrenament i test el que fem és entrenar el model amb les dades d'entrenament.
@@ -713,25 +700,57 @@ summary(Model)
 Un cop fet l'entrenament, la sortida de la funció d'R ens mostra amb *** els atributs més rellevants o que tenen més importància a l'hora de classificar les dades. Un cop ja tenim el model entrenat, el següent pas és validar-lo per veure si és capaç de generalitzar de manera correcte i classificar bé dades que no ha vist durant l'entrenament. Primer farem la predicció i després mostrarem una taula els resultats obtinguts de la predicció.
 
 ```{r}
-# pred <- predict(Model, test, type = "response")
-# t_conf <- table(test$new.quality, pred >= 0.5)
-# VP <- t_conf[1,1]
-# VN <- t_conf[2,2]
-# FP <- t_conf[1,2]
-# FN <- t_conf[2,1]
-# t_conf
-# t_conf%>%
-#   kbl(caption = "Taula 1: Matriu de confusió", align = 'c', col.names = c("BO", "NORMAL")) %>%
-#   kable_classic(c("striped", "hover", "condensed", "responsive"), full_width = F) %>%
-#   row_spec(0, bold = TRUE) %>%
-#   column_spec(1, bold = TRUE)
+pred <- predict(Model, test, type = "response")
+t_conf <- table(test$new.quality, pred >= 0.5)
+VP <- t_conf[1,1]
+VN <- t_conf[2,2]
+FP <- t_conf[1,2]
+FN <- t_conf[2,1]
+```
+
+\newpage
+
+```{r}
+t_conf%>%
+  kbl(caption = "Matriu de confusió", align = 'c', col.names = c("BO", "NORMAL")) %>%
+  kable_classic(c("striped", "hover", "condensed", "responsive"), full_width = F) %>%
+  row_spec(0, bold = TRUE) %>%
+  column_spec(1, bold = TRUE)
 ```
 
 
+Segons la taula de confusió el nostre model classifica correctament `r t_conf[1,1] + t_conf[2,2]` mostres, per contra classifica incorrectament `r t_conf[1,2] + t_conf[2,1]` mostres, de les quals `r t_conf[1,2]` són falsos positius i `r t_conf[2,1]` són falsos negatius. Amb això tenim que el percentatge d'encert del model és del `r round(((t_conf[1,1] + t_conf[2,2])/(t_conf[1,1] + t_conf[2,2] + t_conf[1,2] + t_conf[2,1]))*100, 3)`%, tot i que és un valor força bo, un bon model de classificació hauria de tenir un percentatge més elevat.
+
+Si analitzem la sensibilitat (proporció de classificats correctament amb resposta positiva) és del `r round((t_conf[2,2]/(t_conf[2,2] + t_conf[2,1]))*100, 3)`%, el qual ens indica que no és capaç de classificar correctament tots els casos positius i que genera algun fals negatiu.
+
+Si analitzem l'especificitat (proporció de classificats correctament amb resposta negativa) és del `r round((t_conf[1,1]/(t_conf[1,1] + t_conf[1,2]))*100, 3)`%, aquest valor, igual que abans, ens indica que no és capaç de classificar correctament tots els casos negatius i que genera algun fals positiu.
+
+Si comparem sensibilitat contra especificitat podem concloure que el model classifica millor els casos positius que els negatius, segurament perquè té alguna mostra més d'aquests i tingui una mica de viaix cap aquesta direcció.
+
+A continuació fem el gràfic de la curva ROC del model generat i on les línies horitzontal i vertical corresponen al valor de l'especificitat i la sensibilitat per un valor llindar del 50%.
+
+```{r warning=FALSE, message=FALSE, fig.align='center', fig.height=3.4, fig.width=6}
+r <- roc(test$new.quality, pred, data=test)
+ggroc(r) +
+  labs(title="ROC Curve",
+       x="Specificity", y = "Sensitivity") +
+  geom_abline(intercept = 1, slope = 1, color="lightgrey") +
+  geom_hline(yintercept = t_conf[2,2]/(t_conf[2,2] + t_conf[2,1]), color="darkred") +
+  geom_vline(xintercept = t_conf[1,1]/(t_conf[1,1] + t_conf[1,2]), color="darkred") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Finalment calculem el valor de l'àrea sota la corva ROC:
+
+```{r}
+auc(r)
+```
+
+Tot i que un valor d'àrea sota la corba més gran de 0.8 es pot considerar un bon model, com que l'exactitud està per sota del 80% la nostra conclusió és que és un bon model però no excel·lent que ens permeti discriminar correctament entre un bon vi i un de normal.
 
 
-
-En vista dels resultats obtinguts podem veure que el joc de dades de test tenia 171 vins bons, dels quals 130 ha classificat de manera correcta, pel que fa als vins normals, el joc de test disposava de 149 mostres, de les quals 108 les ha classificat de manera satisfactòria. A més a més, d'aquesta taula en podem calcular les mesures de rendiment del nostre model. L'exactitud del model seria les mostres que ha classificat correctament respecte del total: 
+Amb aquest valor podem concloure que el model discrimina de forma adequada tot i que ja hem comprovat que no és molt bo en detectar els casos positius (jugador internacional).
 
 
 ## 5. Representació dels resultats a partir de taules i gràfiques.
@@ -748,16 +767,11 @@ Es pot trobal al repositori de github de cada un de nosaltres
 
 
 
-\begin{table}[t]
 
-\begin{center}
-\begin{tabular}{| c | c | c | c | }\hline
-\multicolumn{4}{ |c| }{TAULA DE CONTRIBUCIONS} \\ \hline
-INVESTIGACIÓ PRÈVIA & OMM & GRR \\
-REDACCIÓ DE LES RESPOSTES & OMM & GRR \\
-DESENVOLUPAMENT DEL CODI & OMM & GRR \\ \hline\end{tabular}
 
-\end{center}
-
-\end{table}
+|       TAULA DE CONTRIBUCIONS          |
+|---------------------------|-----|-----|
+| INVESTIGACIÓ PRÈVIA       | OMM | GRR |
+| REDACCIÓ DE LES RESPOSTES | OMM | GRR |
+| DESENVOLUPAMENT DEL CODI  | OMM | GRR |
 
