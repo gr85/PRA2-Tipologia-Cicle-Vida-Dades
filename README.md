@@ -10,3 +10,4 @@ Repositori per posar el codi i tot el material necessari per la realització de 
 * **data:** carpeta que conté els fitxer .csv que correspont al dataset descarregat.
 * **src:** carpeta que conté el fitxer amb el codi R de les diferents tècniques d'anàlisi de les dades. 
 * **PRA2.pdf:** fitxer amb les respostes a les preguntes proposades en l'enunciat de la pràctica.
+* **PRA2_video.mp4:** video de l'explicació del que s'ha realitzat en la pràctica.
